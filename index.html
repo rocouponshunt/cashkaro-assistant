@@ -127,6 +127,20 @@
   let conversationHistory = [];
   let isLoading = false;
 
+  // Platform emoji map
+  function platformEmoji(name) {
+    const map = {
+      'amazon': '🟠', 'flipkart': '🔵', 'myntra': '🟣',
+      'croma': '🔴', 'nykaa': '🩷', 'ajio': '⚫',
+      'reliance': '🟤', 'dot': '🌸', 'hyuga': '🌿', 'adidas': '⚪'
+    };
+    const lower = name.toLowerCase();
+    for (const key in map) {
+      if (lower.includes(key)) return map[key];
+    }
+    return '🟢';
+  }
+
   async function sendMessage() {
     const input = document.getElementById('messageInput');
     const message = input.value.trim();
@@ -143,18 +157,18 @@
         body: JSON.stringify({ message, session_id: SESSION_ID, user_id: USER_ID, conversation_history: conversationHistory })
       });
       const data = await response.json();
-      conversationHistory.push({ role: 'user', content: message }, { role: 'assistant', content: data.response || '' });
+      conversationHistory.push(
+        { role: 'user', content: message },
+        { role: 'assistant', content: data.response || '' }
+      );
 
-      // FIX: Only show cards if valid products exist, only show text for non-product responses
       const validProducts = (data.products || []).filter(p =>
         (p.platforms || []).some(pl => pl.listed_price > 0)
       );
 
       if (validProducts.length > 0) {
-        // Product results: show ONLY cards, no duplicate text
         addProductCards(validProducts);
       } else if (data.response) {
-        // Text-only response (greetings, help, errors)
         addMessage('bot', data.response);
       } else {
         addMessage('bot', '⚠️ Something went wrong. Please try again.');
@@ -194,10 +208,12 @@
     products.forEach(product => {
       const card = document.createElement('div');
       card.className = 'product-card';
+
       const platforms = (product.platforms || []).filter(p => p.listed_price > 0);
       const sorted = [...platforms].sort((a, b) => a.final_price - b.final_price);
       const bestPlatform = sorted[0]?.platform;
 
+      // Header
       const header = document.createElement('div');
       header.className = 'product-header';
 
@@ -223,29 +239,42 @@
       header.appendChild(info);
       card.appendChild(header);
 
+      // Price rows
       const priceTable = document.createElement('div');
       priceTable.className = 'price-table';
 
       sorted.forEach(p => {
         const saving = Math.round(p.listed_price - p.final_price);
         const cashbackAmt = Math.round(p.cashback_amount);
-        const deeplink = p.deeplink || p.product_url || '#';
+        const directUrl = p.deeplink || p.product_url || '#';
+
         const row = document.createElement('div');
         row.className = `platform-row${p.platform === bestPlatform ? ' best-deal' : ''}`;
         row.innerHTML = `
           <div class="platform-name">
-            ${p.platform === 'Amazon' ? '🟠' : p.platform === 'Flipkart' ? '🔵' : '🟢'} ${p.platform}
+            ${platformEmoji(p.platform)} ${p.platform}
             ${p.platform === bestPlatform ? '<span class="best-badge">BEST DEAL</span>' : ''}
           </div>
           <div class="price-stack">
-            <div class="price-row"><span>Listed Price</span><span class="amount">₹${Math.round(p.listed_price).toLocaleString('en-IN')}</span></div>
-            <div class="price-row"><span>CashKaro ${p.cashback_type || 'Cashback'} (${p.cashback_rate})</span><span class="amount" style="color:var(--ck-green)">-₹${cashbackAmt.toLocaleString('en-IN')}</span></div>
+            <div class="price-row">
+              <span>Listed Price</span>
+              <span class="amount">₹${Math.round(p.listed_price).toLocaleString('en-IN')}</span>
+            </div>
+            <div class="price-row">
+              <span>CashKaro ${p.cashback_type || 'Cashback'} (${p.cashback_rate})</span>
+              <span class="amount" style="color:var(--ck-green)">-₹${cashbackAmt.toLocaleString('en-IN')}</span>
+            </div>
             ${p.bank_saving > 0 ? `<div class="price-row"><span>Bank Offer</span><span class="amount" style="color:var(--ck-green)">-₹${Math.round(p.bank_saving).toLocaleString('en-IN')}</span></div>` : ''}
             ${p.coupon_saving > 0 ? `<div class="price-row"><span>Coupon</span><span class="amount" style="color:var(--ck-green)">-₹${Math.round(p.coupon_saving).toLocaleString('en-IN')}</span></div>` : ''}
-            <div class="price-row final"><span>Final Price</span><span class="amount">₹${Math.round(p.final_price).toLocaleString('en-IN')}</span></div>
+            <div class="price-row final">
+              <span>Final Price</span>
+              <span class="amount">₹${Math.round(p.final_price).toLocaleString('en-IN')}</span>
+            </div>
           </div>
           ${saving > 0 ? `<div class="savings-tag">You save ₹${saving.toLocaleString('en-IN')} 🎉</div>` : ''}
-          <a href="${deeplink}" target="_blank" class="shop-btn">Shop on ${p.platform} & earn ₹${cashbackAmt.toLocaleString('en-IN')} ${p.cashback_type || 'Cashback'} →</a>
+          <a href="${directUrl}" target="_blank" class="shop-btn">
+            Shop on ${p.platform} →
+          </a>
         `;
         priceTable.appendChild(row);
       });
